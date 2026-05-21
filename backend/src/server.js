@@ -9,10 +9,10 @@ import dashboardRoutes from "./routes/dashboardRoutes.js";
 import leadRoutes from "./routes/leadRoutes.js";
 import followUpRoutes from "./routes/followUpRoutes.js";
 import settingRoutes from "./routes/settingRoutes.js";
-import userRoutes from './routes/userRoutes.js';
-import permissionRoutes from './routes/permissionRoutes.js';
+import userRoutes from "./routes/userRoutes.js";
+import permissionRoutes from "./routes/permissionRoutes.js";
 import authRoutes from "./routes/authRoutes.js";
-
+import webhookRoutes from "./routes/webhookRoutes.js";
 
 // Load .env variables
 dotenv.config();
@@ -46,21 +46,19 @@ app.get("/", (req, res) => {
       followups: "/api/followups",
       followupFilters: "/api/followups/filters/counts",
       settings: "/api/settings/:type",
+      webhooks: "/api/webhooks/meta-leads",
     },
   });
 });
 
-app.use("/api/dashboard", dashboardRoutes);
 app.use("/api/auth", authRoutes);
+app.use("/api/dashboard", dashboardRoutes);
 app.use("/api/leads", leadRoutes);
 app.use("/api/followups", followUpRoutes);
 app.use("/api/settings", settingRoutes);
-app.use('/api/users', userRoutes);
-app.use('/api/permissions', permissionRoutes);
-app.use("/api/auth", authRoutes);
-app.use("/api/dashboard", dashboardRoutes);
-app.use("/api/leads", leadRoutes);
-app.use("/api/followups", followUpRoutes);
+app.use("/api/users", userRoutes);
+app.use("/api/permissions", permissionRoutes);
+app.use("/api/webhooks", webhookRoutes);
 
 // ============ 404 Handler ============
 app.use((req, res) => {
