@@ -48,7 +48,7 @@ const leadSchema = new mongoose.Schema(
     metaAdId: { type: String, default: null, index: true }, // Facebook ad ID
     metaFormId: { type: String, default: null }, // Lead form ID
     metaCampaignId: { type: String, default: null }, // Campaign ID
-    metaLeadgenId: { type: String, default: null, unique: true, sparse: true }, // Meta's lead ID (unique - prevent duplicates)
+    metaLeadgenId: { type: String, default: null, sparse: true, index: true },
     metaPageId: { type: String, default: null }, // Facebook Page ID
     metaRawData: { type: mongoose.Schema.Types.Mixed, default: null }, // Full raw payload (for debugging)
   },

@@ -1,6 +1,9 @@
 import User from '../models/User.js';
 import Lead from '../models/Lead.js';
 
+// Roles to exclude from auto-assignment
+const EXCLUDED_ROLES = ['admin', 'Admin', 'administrator', 'Administrator'];
+
 /**
  * Auto-assign a lead to next available user using Round-Robin strategy
  *
@@ -17,10 +20,10 @@ export async function getNextAssignee() {
     // 1. Fetch all eligible users (active, non-admin)
     const eligibleUsers = await User.find({
       isActive: true,
-      role: { $ne: 'admin' } // Exclude admins
+      role: { $nin: EXCLUDED_ROLES }
     })
       .select('name employeeId role')
-      .sort({ createdAt: 1 }) // Consistent order
+      .sort({ createdAt: 1 })
       .lean();
 
     // 2. Fallback if no users found
@@ -29,15 +32,15 @@ export async function getNextAssignee() {
       return 'Unassigned';
     }
 
-    // 3. Format display names: "Name (EmployeeID)"
+    // 3. Format display names
     const userDisplayNames = eligibleUsers.map((u) =>
       u.employeeId ? `${u.name} (${u.employeeId})` : u.name
     );
 
-    // 4. Find the LAST assigned user from recent leads (with Meta source)
+    // 4. Find the LAST assigned user
     const lastAssignedLead = await Lead.findOne({
       source: 'Meta Ads',
-      assignedTo: { $in: userDisplayNames } // Only consider eligible users
+      assignedTo: { $in: userDisplayNames }
     })
       .sort({ createdAt: -1 })
       .select('assignedTo')
@@ -46,11 +49,8 @@ export async function getNextAssignee() {
     let nextIndex = 0;
 
     if (lastAssignedLead && lastAssignedLead.assignedTo) {
-      // Find index of last assigned user
       const lastIndex = userDisplayNames.indexOf(lastAssignedLead.assignedTo);
-
       if (lastIndex !== -1) {
-        // Move to next user (wrap around to 0 if at end)
         nextIndex = (lastIndex + 1) % userDisplayNames.length;
       }
     }
@@ -61,19 +61,18 @@ export async function getNextAssignee() {
     return nextAssignee;
   } catch (error) {
     console.error('❌ Auto-assignment error:', error.message);
-    return 'Unassigned'; // Fail-safe
+    return 'Unassigned';
   }
 }
 
 /**
- * Get round-robin assignee for any source (not just Meta)
- * For future use (e.g., public lead form)
+ * Get round-robin assignee for any source
  */
 export async function getNextAssigneeForSource(source = 'Meta Ads') {
   try {
     const eligibleUsers = await User.find({
       isActive: true,
-      role: { $ne: 'admin' }
+      role: { $nin: EXCLUDED_ROLES }
     })
       .select('name employeeId role')
       .sort({ createdAt: 1 })
