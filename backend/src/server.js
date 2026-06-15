@@ -38,16 +38,17 @@ app.get("/", (req, res) => {
   res.json({
     message: "🚀 Skills E-Learnings CRM API",
     status: "running",
-    endpoints: {
-      auth: "/api/auth/login",
-      dashboard: "/api/dashboard/stats",
-      leads: "/api/leads",
-      leadFilters: "/api/leads/filters/counts",
-      followups: "/api/followups",
-      followupFilters: "/api/followups/filters/counts",
-      settings: "/api/settings/:type",
-      webhooks: "/api/webhooks/meta-leads",
-    },
+  endpoints: {
+  auth: "/api/auth/login",
+  dashboard: "/api/dashboard/stats",
+  leads: "/api/leads",
+  leadFilters: "/api/leads/filters/counts",
+  followups: "/api/followups",
+  followupFilters: "/api/followups/filters/counts",
+  settings: "/api/settings/:type",
+  metaWebhook: "/api/webhooks/meta-leads",
+  pabblyWebhook: "/api/webhooks/pabbly-leads"
+}
   });
 });
 
