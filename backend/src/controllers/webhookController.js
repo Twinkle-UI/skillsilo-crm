@@ -181,7 +181,7 @@ export const receivePabblyWebhook = async (req, res) => {
       return res.status(401).json({ success: false, message: "Unauthorized" });
     }
 
-    const payload = req.body;
+    const payload = { ...(req.query || {}), ...(req.body || {}) };
     if (!payload || typeof payload !== "object") {
       return res
         .status(200)
