@@ -19,10 +19,10 @@ export const verifyWebhook = (req, res) => {
 
   if (mode === "subscribe" && token === VERIFY_TOKEN) {
     console.log("✅ Webhook verified successfully");
-    return res.status(200).send(challenge);
+    return res.status(200).send(challenge);    
   }
 
-  console.error("❌ Webhook verification failed");
+  console.error("❌ Webhook verification failed"); 
   return res.status(403).json({ error: "Verification failed" });
 };
 
