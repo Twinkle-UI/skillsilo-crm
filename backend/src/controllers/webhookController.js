@@ -2,6 +2,59 @@ import Lead from "../models/Lead.js";
 import { getNextAssignee } from "../services/leadAssignmentService.js";
 
 // =============================================================
+// Shared helpers
+// =============================================================
+
+// Build a normalized lookup map: { "fullname": "John", ... }
+// strips case + spaces + symbols so any client mapping matches
+function buildNormalizedMap(obj) {
+  const map = {};
+  for (const [k, v] of Object.entries(obj || {})) {
+    if (v === null || v === undefined || v === "") continue;
+    const nk = String(k)
+      .toLowerCase()
+      .replace(/[^a-z0-9]/g, "");
+    if (!(nk in map)) map[nk] = v;
+  }
+  return map;
+}
+
+// Find first matching value from a normalized map by candidate keys
+function pick(normMap, candidates) {
+  for (const c of candidates) {
+    const nc = c.toLowerCase().replace(/[^a-z0-9]/g, "");
+    if (normMap[nc] !== undefined) {
+      const val = normMap[nc];
+      return String(Array.isArray(val) ? val[0] : val).trim();
+    }
+  }
+  return "";
+}
+
+// Clean phone: strip FB "p:" prefix, spaces, dashes — keep + and digits
+function cleanPhone(raw) {
+  if (!raw) return "";
+  return String(raw)
+    .trim()
+    .replace(/^p:/i, "")
+    .replace(/[^\d+]/g, "");
+}
+
+// Optional shared-secret guard.
+// Set PABBLY_WEBHOOK_SECRET in env to enforce.
+// Client adds header  x-webhook-secret: <value>  in Pabbly action,
+// OR ?secret=<value> in the webhook URL.
+function isAuthorized(req) {
+  const secret = process.env.PABBLY_WEBHOOK_SECRET;
+  if (!secret) return true; // not configured → open (existing behaviour)
+  const provided =
+    req.headers["x-webhook-secret"] ||
+    req.query.secret ||
+    (req.body && req.body.secret);
+  return provided === secret;
+}
+
+// =============================================================
 // GET /api/webhooks/meta-leads
 // Meta webhook verification challenge
 // =============================================================
@@ -13,55 +66,47 @@ export const verifyWebhook = (req, res) => {
   const token = req.query["hub.verify_token"];
   const challenge = req.query["hub.challenge"];
 
-  console.log("🔐 Webhook verification request received");
-  console.log("Mode:", mode);
-  console.log("Token match:", token === VERIFY_TOKEN);
-
   if (mode === "subscribe" && token === VERIFY_TOKEN) {
+<<<<<<< HEAD
     console.log("✅ Webhook verified successfully");
     return res.status(200).send(challenge);    
   }
 
   console.error("❌ Webhook verification failed"); 
+=======
+    console.log("✅ Meta webhook verified");
+    return res.status(200).send(challenge);
+  }
+
+  console.error("❌ Meta webhook verification failed");
+>>>>>>> b22d63f83382fe7f667cf6346eb0da04b415989d
   return res.status(403).json({ error: "Verification failed" });
 };
 
 // =============================================================
 // POST /api/webhooks/meta-leads
-// Receive new leads from Meta (Facebook/Instagram Lead Ads)
+// Direct Meta webhook (kept for future use)
 // =============================================================
 export const receiveWebhook = async (req, res) => {
   try {
-    console.log("\n========================================");
-    console.log("📥 META WEBHOOK RECEIVED");
-    console.log("========================================");
+    console.log("\n📥 META WEBHOOK RECEIVED");
     console.log(JSON.stringify(req.body, null, 2));
-    console.log("========================================\n");
 
     const { entry } = req.body;
-
     if (!entry || !Array.isArray(entry)) {
       return res.status(200).json({ success: true, message: "No entry data" });
     }
 
     const results = [];
-
-    // Meta sends array of entries (one entry = one Page event)
     for (const pageEntry of entry) {
       const pageId = pageEntry.id;
-      const changes = pageEntry.changes || [];
-
-      for (const change of changes) {
-        // Only process leadgen events
+      for (const change of pageEntry.changes || []) {
         if (change.field !== "leadgen") continue;
-
-        const leadgenData = change.value;
-        const lead = await processMetaLead(leadgenData, pageId, req.body);
+        const lead = await processMetaLead(change.value, pageId, req.body);
         results.push(lead);
       }
     }
 
-    // Always return 200 OK to Meta (otherwise they retry)
     res.status(200).json({
       success: true,
       message: "Webhook processed",
@@ -69,73 +114,41 @@ export const receiveWebhook = async (req, res) => {
       leads: results,
     });
   } catch (error) {
-    console.error("❌ Webhook processing error:", error);
-    // Still return 200 - log error but don't tell Meta to retry
-    res.status(200).json({
-      success: false,
-      message: error.message,
-    });
+    console.error("❌ Meta webhook error:", error);
+    res.status(200).json({ success: false, message: error.message });
   }
 };
 
-// =============================================================
-// Helper: Process individual Meta lead
-// =============================================================
 async function processMetaLead(leadgenData, pageId, rawData) {
-  const {
-    leadgen_id,
-    page_id,
-    form_id,
-    ad_id,
-    campaign_id,
-    field_data, // For test webhooks - actual leads need Graph API call
-  } = leadgenData;
+  const { leadgen_id, page_id, form_id, ad_id, campaign_id, field_data } =
+    leadgenData;
 
-  // Check duplicate
   const existing = await Lead.findOne({ metaLeadgenId: leadgen_id });
   if (existing) {
     console.log(`⚠️ Duplicate lead skipped: ${leadgen_id}`);
     return { skipped: true, reason: "duplicate", leadgenId: leadgen_id };
   }
 
-  // Parse lead fields
-  // Note: In production, you'd fetch from Meta Graph API using leadgen_id
-  // For now, we'll use field_data if available (test mode)
-  const leadFields = parseLeadFields(field_data || []);
+  const normMap = buildNormalizedMap(flattenFieldData(field_data || []));
+  const leadData = mapLeadFields(normMap);
 
-  // Auto-assign to user (round-robin)
   const assignedTo = await getNextAssignee();
 
-  // Create lead
   const newLead = await Lead.create({
-    name: leadFields.name || "Unknown",
-    contact: leadFields.phone || leadFields.phone_number || "",
-    email: leadFields.email || "",
-
-    // Inquiry info from form fields
-    inquiredFor: leadFields.university || leadFields.university_interest || "",
-    program: leadFields.program || leadFields.course || "",
-    category: leadFields.category || "",
-
-    // Default stage
+    name: leadData.name || "Unknown",
+    contact: cleanPhone(leadData.contact),
+    email: leadData.email || "",
+    inquiredFor: leadData.university || "",
+    program: leadData.program || "",
+    category: leadData.course || "",
     stage: "New Leads",
-
-    // Source
     source: "Meta Ads",
-    sourceNote: leadFields.source_note || `Form: ${form_id || "Unknown"}`,
-
-    // Location
-    country: leadFields.country || "India",
-    state: leadFields.state || "",
-    location: leadFields.city || leadFields.location || "",
-
-    // Auto-assigned
+    sourceNote: `Form: ${form_id || "Unknown"}`,
+    country: leadData.country || "India",
+    state: leadData.state || "",
+    location: leadData.city || "",
     assignedTo,
-
-    // Remark
-    remark: "Auto-created from Meta Ads",
-
-    // Meta tracking
+    remark: "Auto-created from Meta Ads (direct)",
     metaAdId: ad_id || null,
     metaFormId: form_id || null,
     metaCampaignId: campaign_id || null,
@@ -144,90 +157,66 @@ async function processMetaLead(leadgenData, pageId, rawData) {
     metaRawData: rawData,
   });
 
-  console.log(`✅ Lead created: ${newLead.name} → ${assignedTo}`);
-
-  return {
-    success: true,
-    leadId: newLead._id,
-    name: newLead.name,
-    assignedTo,
-    leadgenId: leadgen_id,
-  };
+  console.log(`✅ Meta lead created: ${newLead.name} → ${assignedTo}`);
+  return { success: true, leadId: newLead._id, assignedTo };
 }
 
-// =============================================================
-// Helper: Parse Meta field_data array to object
-// Meta sends fields like: [{name: 'full_name', values: ['John']}, ...]
-// =============================================================
-function parseLeadFields(fieldData) {
-  const fields = {};
-
-  for (const item of fieldData) {
-    if (!item.name || !item.values) continue;
+// Convert FB field_data [{name, values:[...]}] → flat object
+function flattenFieldData(fieldData) {
+  const flat = {};
+  for (const item of fieldData || []) {
+    if (!item || !item.name) continue;
     const value = Array.isArray(item.values) ? item.values[0] : item.values;
-
-    // Normalize common field names
-    const normalizedName = item.name.toLowerCase().replace(/[^a-z_]/g, "");
-
-    // Common field mappings
-    const fieldMap = {
-      full_name: "name",
-      fullname: "name",
-      first_name: "name",
-      firstname: "name",
-      phone_number: "phone",
-      phonenumber: "phone",
-      mobile: "phone",
-      mobilenumber: "phone",
-      email_address: "email",
-      emailaddress: "email",
-      university_interest: "university",
-      universityinterest: "university",
-      course_interest: "course",
-      courseinterest: "course",
-    };
-
-    const mappedKey = fieldMap[normalizedName] || normalizedName;
-    fields[mappedKey] = value;
+    flat[item.name] = value;
   }
-
-  return fields;
+  return flat;
 }
 
 // =============================================================
 // POST /api/webhooks/pabbly-leads
-// Receive leads from Pabbly Connect (Facebook Lead Ads → Pabbly → CRM)
+// Facebook Lead Ads → Pabbly Connect → CRM  (PRODUCTION PATH)
 // =============================================================
 export const receivePabblyWebhook = async (req, res) => {
   try {
-    console.log('\n========================================');
-    console.log('📥 PABBLY WEBHOOK RECEIVED');
-    console.log('========================================');
+    console.log("\n========================================");
+    console.log("📥 PABBLY WEBHOOK RECEIVED");
+    console.log("========================================");
     console.log(JSON.stringify(req.body, null, 2));
-    console.log('========================================\n');
+    console.log("========================================\n");
 
-    const payload = req.body;
-
-    if (!payload || typeof payload !== 'object') {
-      return res.status(400).json({
-        success: false,
-        message: 'Invalid payload'
-      });
+    if (!isAuthorized(req)) {
+      console.warn("⛔ Unauthorized Pabbly webhook hit");
+      return res.status(401).json({ success: false, message: "Unauthorized" });
     }
 
-    // Extract lead data from Pabbly flat payload
-    const leadData = extractPabblyLeadData(payload);
+    const payload = { ...(req.query || {}), ...(req.body || {}) };
+    if (!payload || typeof payload !== "object") {
+      return res
+        .status(200)
+        .json({ success: false, message: "Invalid payload" });
+    }
 
-    if (!leadData.name || !leadData.contact) {
-      console.warn('⚠️ Missing required fields (name/phone)');
+    // Merge top-level keys + raw field_data (if client passes raw array)
+    const merged = { ...payload };
+    if (Array.isArray(payload.field_data)) {
+      Object.assign(merged, flattenFieldData(payload.field_data));
+    }
+
+    const normMap = buildNormalizedMap(merged);
+    const leadData = mapLeadFields(normMap);
+    leadData.contact = cleanPhone(leadData.contact);
+
+    // Need name + at least one way to contact
+    if (!leadData.name || (!leadData.contact && !leadData.email)) {
+      console.warn("⚠️ Missing required fields (name + phone/email)");
       return res.status(200).json({
         success: false,
-        message: 'Missing required fields: name or phone',
-        received: payload
+        message: "Missing required fields: name and (phone or email)",
+        received: payload,
       });
     }
 
-    // Check duplicate using lead_id
+    // Duplicate check #1 — by Meta lead id
     if (leadData.leadId) {
       const existing = await Lead.findOne({ metaLeadgenId: leadData.leadId });
       if (existing) {
@@ -235,168 +224,125 @@ export const receivePabblyWebhook = async (req, res) => {
         return res.status(200).json({
           success: true,
           skipped: true,
-          reason: 'duplicate',
-          leadgenId: leadData.leadId
+          reason: "duplicate",
+          leadgenId: leadData.leadId,
+        });
+      }
+    } else if (leadData.contact) {
+      // Duplicate check #2 — same phone within last 5 min (double-submit guard)
+      const fiveMinAgo = new Date(Date.now() - 5 * 60 * 1000);
+      const recent = await Lead.findOne({
+        contact: leadData.contact,
+        createdAt: { $gte: fiveMinAgo },
+      });
+      if (recent) {
+        console.log(`⚠️ Recent duplicate skipped: ${leadData.contact}`);
+        return res.status(200).json({
+          success: true,
+          skipped: true,
+          reason: "recent-duplicate",
         });
       }
     }
 
-    // Auto-assign user (round-robin)
     const assignedTo = await getNextAssignee();
 
-    // Create lead in DB
     const newLead = await Lead.create({
       name: leadData.name,
       contact: leadData.contact,
-      email: leadData.email || '',
-
-      // Inquiry info
-      inquiredFor: leadData.university || '',
-      program: leadData.program || '',
-      category: leadData.course || '',
-
-      // Stage
-      stage: 'New Leads',
-
-      // Source
-      source: 'Meta Ads',
-      sourceNote: leadData.formName || 'Pabbly - Facebook Lead Ads',
-
-      // Location
-      country: leadData.country || 'India',
-      state: leadData.state || '',
-      location: leadData.city || '',
-
-      // Auto-assigned
+      email: leadData.email || "",
+      inquiredFor: leadData.university || "",
+      program: leadData.program || "",
+      category: leadData.course || "",
+      stage: "New Leads",
+      source: "Meta Ads",
+      sourceNote: leadData.formName || "Pabbly - Facebook Lead Ads",
+      country: leadData.country || "India",
+      state: leadData.state || "",
+      location: leadData.city || "",
       assignedTo,
-
-      // Remark
-      remark: 'Auto-created from Pabbly (Facebook Lead Ads)',
-
-      // Meta tracking
+      remark: "Auto-created from Pabbly (Facebook Lead Ads)",
       metaAdId: leadData.adId || null,
       metaFormId: leadData.formId || null,
       metaCampaignId: leadData.campaignId || null,
       metaLeadgenId: leadData.leadId || null,
       metaPageId: leadData.pageId || null,
-      metaRawData: payload // Save full raw data for debugging
+      metaRawData: payload,
     });
 
-    console.log(`✅ Pabbly Lead created: ${newLead.name} → ${assignedTo}`);
+    console.log(`✅ Pabbly lead created: ${newLead.name} → ${assignedTo}`);
 
-    res.status(200).json({
+    return res.status(200).json({
       success: true,
-      message: 'Lead created successfully',
+      message: "Lead created successfully",
       leadId: newLead._id,
       name: newLead.name,
       assignedTo,
-      leadgenId: leadData.leadId
+      leadgenId: leadData.leadId || null,
     });
   } catch (error) {
-    console.error('❌ Pabbly webhook error:', error);
-    // Return 200 to prevent Pabbly retries
-    res.status(200).json({
-      success: false,
-      message: error.message
-    });
+    console.error("❌ Pabbly webhook error:", error);
+    // Always 200 so Pabbly doesn't spam retries
+    return res.status(200).json({ success: false, message: error.message });
   }
 };
 
 // =============================================================
-// Helper: Extract lead data from Pabbly's flat payload
-// Handles multiple field name variations
+// Helper: map normalized payload → CRM lead fields
+// Handles all common Facebook + custom field name variations
 // =============================================================
-function extractPabblyLeadData(payload) {
-  // Helper to find value by multiple possible key names
-  const findValue = (keys) => {
-    for (const key of keys) {
-      if (payload[key]) return String(payload[key]).trim();
-    }
-    return '';
-  };
-
-  // Extract with multiple key variations
+function mapLeadFields(normMap) {
   return {
-    // Required
-    name: findValue([
-      'full_name',
-      'fullname',
-      'name',
-      'first_name',
-      'firstname',
-      'lead_name'
+    name: pick(normMap, [
+      "full_name",
+      "fullname",
+      "name",
+      "first_name",
+      "firstname",
+      "lead_name",
     ]),
-    contact: findValue([
-      'phone_number',
-      'phone',
-      'mobile',
-      'mobile_number',
-      'phone_no',
-      'contact',
-      'contact_number'
+    contact: pick(normMap, [
+      "phone_number",
+      "phone",
+      "mobile",
+      "mobile_number",
+      "phone_no",
+      "contact",
+      "contact_number",
+      "whatsapp_number",
     ]),
-
-    // Common fields
-    email: findValue([
-      'email',
-      'email_address',
-      'emailaddress',
-      'email_id'
+    email: pick(normMap, [
+      "email",
+      "email_address",
+      "emailaddress",
+      "email_id",
+      "work_email",
     ]),
-
-    // Education-specific
-    university: findValue([
-      'university',
-      'university_interest',
-      'university_name',
-      'institute',
-      'institution',
-      'college',
-      'department'
+    university: pick(normMap, [
+      "university",
+      "university_interest",
+      "university_name",
+      "institute",
+      "institution",
+      "college",
+      "department",
     ]),
-    program: findValue([
-      'program',
-      'program_type',
-      'category'
+    program: pick(normMap, ["program", "program_type", "category", "degree"]),
+    course: pick(normMap, [
+      "course",
+      "course_interest",
+      "course_name",
+      "specialization",
+      "stream",
     ]),
-    course: findValue([
-      'course',
-      'course_interest',
-      'course_name',
-      'specialization'
-    ]),
-
-    // Location
-    city: findValue(['city', 'location']),
-    state: findValue(['state', 'region']),
-    country: findValue(['country']),
-
-    // Meta tracking
-    leadId: findValue([
-      'lead_id',
-      'leadgen_id',
-      'leadid',
-      'id'
-    ]),
-    formId: findValue([
-      'form_id',
-      'formid'
-    ]),
-    formName: findValue([
-      'form_name',
-      'formname'
-    ]),
-    pageId: findValue([
-      'page_id',
-      'pageid'
-    ]),
-    adId: findValue([
-      'ad_id',
-      'adid'
-    ]),
-    campaignId: findValue([
-      'campaign_id',
-      'campaignid'
-    ])
+    city: pick(normMap, ["city", "location"]),
+    state: pick(normMap, ["state", "region"]),
+    country: pick(normMap, ["country"]),
+    leadId: pick(normMap, ["lead_id", "leadgen_id", "leadid", "id"]),
+    formId: pick(normMap, ["form_id", "formid"]),
+    formName: pick(normMap, ["form_name", "formname"]),
+    pageId: pick(normMap, ["page_id", "pageid"]),
+    adId: pick(normMap, ["ad_id", "adid"]),
+    campaignId: pick(normMap, ["campaign_id", "campaignid"]),
   };
 }
