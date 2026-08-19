@@ -1,25 +1,16 @@
 import Lead from "../models/Lead.js";
 import { getNextAssignee } from "../services/leadAssignmentService.js";
 
-// =============================================================
-// Shared helpers
-// =============================================================
-
-// Build a normalized lookup map: { "fullname": "John", ... }
-// strips case + spaces + symbols so any client mapping matches
 function buildNormalizedMap(obj) {
   const map = {};
   for (const [k, v] of Object.entries(obj || {})) {
     if (v === null || v === undefined || v === "") continue;
-    const nk = String(k)
-      .toLowerCase()
-      .replace(/[^a-z0-9]/g, "");
+    const nk = String(k).toLowerCase().replace(/[^a-z0-9]/g, "");
     if (!(nk in map)) map[nk] = v;
   }
   return map;
 }
 
-// Find first matching value from a normalized map by candidate keys
 function pick(normMap, candidates) {
   for (const c of candidates) {
     const nc = c.toLowerCase().replace(/[^a-z0-9]/g, "");
@@ -31,22 +22,14 @@ function pick(normMap, candidates) {
   return "";
 }
 
-// Clean phone: strip FB "p:" prefix, spaces, dashes — keep + and digits
 function cleanPhone(raw) {
   if (!raw) return "";
-  return String(raw)
-    .trim()
-    .replace(/^p:/i, "")
-    .replace(/[^\d+]/g, "");
+  return String(raw).trim().replace(/^p:/i, "").replace(/[^\d+]/g, "");
 }
 
-// Optional shared-secret guard.
-// Set PABBLY_WEBHOOK_SECRET in env to enforce.
-// Client adds header  x-webhook-secret: <value>  in Pabbly action,
-// OR ?secret=<value> in the webhook URL.
 function isAuthorized(req) {
   const secret = process.env.PABBLY_WEBHOOK_SECRET;
-  if (!secret) return true; // not configured → open (existing behaviour)
+  if (!secret) return true;
   const provided =
     req.headers["x-webhook-secret"] ||
     req.query.secret ||
@@ -54,10 +37,6 @@ function isAuthorized(req) {
   return provided === secret;
 }
 
-// =============================================================
-// GET /api/webhooks/meta-leads
-// Meta webhook verification challenge
-// =============================================================
 export const verifyWebhook = (req, res) => {
   const VERIFY_TOKEN =
     process.env.META_WEBHOOK_VERIFY_TOKEN || "skillsilo_meta_verify_token";
@@ -67,26 +46,14 @@ export const verifyWebhook = (req, res) => {
   const challenge = req.query["hub.challenge"];
 
   if (mode === "subscribe" && token === VERIFY_TOKEN) {
-<<<<<<< HEAD
-    console.log("✅ Webhook verified successfully");
-    return res.status(200).send(challenge);    
-  }
-
-  console.error("❌ Webhook verification failed"); 
-=======
     console.log("✅ Meta webhook verified");
     return res.status(200).send(challenge);
   }
 
   console.error("❌ Meta webhook verification failed");
->>>>>>> b22d63f83382fe7f667cf6346eb0da04b415989d
   return res.status(403).json({ error: "Verification failed" });
 };
 
-// =============================================================
-// POST /api/webhooks/meta-leads
-// Direct Meta webhook (kept for future use)
-// =============================================================
 export const receiveWebhook = async (req, res) => {
   try {
     console.log("\n📥 META WEBHOOK RECEIVED");
@@ -131,7 +98,6 @@ async function processMetaLead(leadgenData, pageId, rawData) {
 
   const normMap = buildNormalizedMap(flattenFieldData(field_data || []));
   const leadData = mapLeadFields(normMap);
-
   const assignedTo = await getNextAssignee();
 
   const newLead = await Lead.create({
@@ -161,7 +127,6 @@ async function processMetaLead(leadgenData, pageId, rawData) {
   return { success: true, leadId: newLead._id, assignedTo };
 }
 
-// Convert FB field_data [{name, values:[...]}] → flat object
 function flattenFieldData(fieldData) {
   const flat = {};
   for (const item of fieldData || []) {
@@ -172,10 +137,6 @@ function flattenFieldData(fieldData) {
   return flat;
 }
 
-// =============================================================
-// POST /api/webhooks/pabbly-leads
-// Facebook Lead Ads → Pabbly Connect → CRM  (PRODUCTION PATH)
-// =============================================================
 export const receivePabblyWebhook = async (req, res) => {
   try {
     console.log("\n========================================");
@@ -191,12 +152,9 @@ export const receivePabblyWebhook = async (req, res) => {
 
     const payload = { ...(req.query || {}), ...(req.body || {}) };
     if (!payload || typeof payload !== "object") {
-      return res
-        .status(200)
-        .json({ success: false, message: "Invalid payload" });
+      return res.status(200).json({ success: false, message: "Invalid payload" });
     }
 
-    // Merge top-level keys + raw field_data (if client passes raw array)
     const merged = { ...payload };
     if (Array.isArray(payload.field_data)) {
       Object.assign(merged, flattenFieldData(payload.field_data));
@@ -206,7 +164,6 @@ export const receivePabblyWebhook = async (req, res) => {
     const leadData = mapLeadFields(normMap);
     leadData.contact = cleanPhone(leadData.contact);
 
-    // Need name + at least one way to contact
     if (!leadData.name || (!leadData.contact && !leadData.email)) {
       console.warn("⚠️ Missing required fields (name + phone/email)");
       return res.status(200).json({
@@ -216,7 +173,6 @@ export const receivePabblyWebhook = async (req, res) => {
       });
     }
 
-    // Duplicate check #1 — by Meta lead id
     if (leadData.leadId) {
       const existing = await Lead.findOne({ metaLeadgenId: leadData.leadId });
       if (existing) {
@@ -229,7 +185,6 @@ export const receivePabblyWebhook = async (req, res) => {
         });
       }
     } else if (leadData.contact) {
-      // Duplicate check #2 — same phone within last 5 min (double-submit guard)
       const fiveMinAgo = new Date(Date.now() - 5 * 60 * 1000);
       const recent = await Lead.findOne({
         contact: leadData.contact,
@@ -282,59 +237,18 @@ export const receivePabblyWebhook = async (req, res) => {
     });
   } catch (error) {
     console.error("❌ Pabbly webhook error:", error);
-    // Always 200 so Pabbly doesn't spam retries
     return res.status(200).json({ success: false, message: error.message });
   }
 };
 
-// =============================================================
-// Helper: map normalized payload → CRM lead fields
-// Handles all common Facebook + custom field name variations
-// =============================================================
 function mapLeadFields(normMap) {
   return {
-    name: pick(normMap, [
-      "full_name",
-      "fullname",
-      "name",
-      "first_name",
-      "firstname",
-      "lead_name",
-    ]),
-    contact: pick(normMap, [
-      "phone_number",
-      "phone",
-      "mobile",
-      "mobile_number",
-      "phone_no",
-      "contact",
-      "contact_number",
-      "whatsapp_number",
-    ]),
-    email: pick(normMap, [
-      "email",
-      "email_address",
-      "emailaddress",
-      "email_id",
-      "work_email",
-    ]),
-    university: pick(normMap, [
-      "university",
-      "university_interest",
-      "university_name",
-      "institute",
-      "institution",
-      "college",
-      "department",
-    ]),
+    name: pick(normMap, ["full_name", "fullname", "name", "first_name", "firstname", "lead_name"]),
+    contact: pick(normMap, ["phone_number", "phone", "mobile", "mobile_number", "phone_no", "contact", "contact_number", "whatsapp_number"]),
+    email: pick(normMap, ["email", "email_address", "emailaddress", "email_id", "work_email"]),
+    university: pick(normMap, ["university", "university_interest", "university_name", "institute", "institution", "college", "department"]),
     program: pick(normMap, ["program", "program_type", "category", "degree"]),
-    course: pick(normMap, [
-      "course",
-      "course_interest",
-      "course_name",
-      "specialization",
-      "stream",
-    ]),
+    course: pick(normMap, ["course", "course_interest", "course_name", "specialization", "stream"]),
     city: pick(normMap, ["city", "location"]),
     state: pick(normMap, ["state", "region"]),
     country: pick(normMap, ["country"]),

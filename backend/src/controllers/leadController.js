@@ -869,3 +869,44 @@ export const bulkExportLeads = async (req, res) => {
     res.status(500).json({ success: false, message: error.message });
   }
 };
+
+
+
+
+
+// POST /api/leads/bulk/university - bulk change university
+export const bulkChangeUniversity = async (req, res) => {
+  try {
+    const { ids, inquiredFor, assignedTo } = req.body;
+
+    if (!Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'IDs array is required'
+      });
+    }
+
+    if (!inquiredFor) {
+      return res.status(400).json({
+        success: false,
+        message: 'University is required'
+      });
+    }
+
+    const updateData = { inquiredFor };
+    if (assignedTo) updateData.assignedTo = assignedTo;
+
+    const result = await Lead.updateMany(
+      { _id: { $in: ids } },
+      { $set: updateData }
+    );
+
+    res.json({
+      success: true,
+      message: `Updated ${result.modifiedCount} leads`,
+      data: { modifiedCount: result.modifiedCount }
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};

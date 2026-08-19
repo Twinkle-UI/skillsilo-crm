@@ -272,6 +272,37 @@ export default function LeadsPage({
     }
   };
 
+
+const handleBulkChangeUniversity = async (university, assignedTo) => {
+  try {
+    const token = localStorage.getItem('token');
+    const body = { ids: Array.from(selectedIds), inquiredFor: university };
+    if (assignedTo) body.assignedTo = assignedTo;
+
+    const res = await fetch(`${API_BASE}/leads/bulk/university`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token && { Authorization: `Bearer ${token}` })
+      },
+      body: JSON.stringify(body)
+    });
+
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.message);
+
+    alert(`✅ ${data.message}`);
+    setSelectedIds(new Set());
+    await reloadLeads();
+    refreshCounts();
+  } catch (err) {
+    alert('University change failed: ' + err.message);
+  }
+};
+
+
+
+
   // ==================== Other Handlers ====================
 
   const handleAdd = () => {
@@ -486,14 +517,15 @@ export default function LeadsPage({
       />
 
       {/* Bulk Actions Bar - shows only when selection exists */}
-      <BulkActionsBar
-        selectedCount={selectedIds.size}
-        onClearSelection={handleClearSelection}
-        onDelete={handleBulkDelete}
-        onAssign={handleBulkAssign}
-        onChangeStage={handleBulkChangeStage}
-        onExport={handleBulkExport}
-      />
+     <BulkActionsBar
+  selectedCount={selectedIds.size}
+  onClearSelection={handleClearSelection}
+  onDelete={handleBulkDelete}
+  onAssign={handleBulkAssign}
+  onChangeStage={handleBulkChangeStage}
+  onExport={handleBulkExport}
+  onChangeUniversity={handleBulkChangeUniversity}
+/>
     </>
   );
 }

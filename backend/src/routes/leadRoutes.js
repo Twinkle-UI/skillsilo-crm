@@ -11,12 +11,14 @@ import {
   bulkDeleteLeads,
   bulkAssignLeads,
   bulkChangeStage,
-  bulkExportLeads
+  bulkExportLeads,
+   bulkChangeUniversity  // ← ye add karo
 } from '../controllers/leadController.js';
 
 const router = express.Router();
 
 // Specific routes pehle (dynamic se pehle)
+router.post('/bulk/university', bulkChangeUniversity);  // ← ye add karo
 router.get('/filters/counts', getFilterCounts);
 router.get('/export', exportLeads);
 router.post('/import', importLeads);

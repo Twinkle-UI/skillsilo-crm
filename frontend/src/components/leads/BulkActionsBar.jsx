@@ -1,18 +1,29 @@
 import { useState, useEffect } from 'react';
 import { settingsAPI, usersAPI } from '../../services/api';
 
+const UNIVERSITIES = [
+  "Vikrant University",
+  "Mahakaushal University",
+  "Dr.Preeti Global University",
+  "Glocal University",
+  "Old Admission",
+  "Mahaveer University",
+  "HRIT",
+];
+
 export default function BulkActionsBar({
   selectedCount,
   onClearSelection,
   onDelete,
   onAssign,
   onChangeStage,
-  onExport
+  onExport,
+  onChangeUniversity
 }) {
   const [showAssignModal, setShowAssignModal] = useState(false);
   const [showStageModal, setShowStageModal] = useState(false);
+  const [showUniversityModal, setShowUniversityModal] = useState(false);
 
-  // Don't render if no selection
   if (selectedCount === 0) return null;
 
   return (
@@ -44,6 +55,13 @@ export default function BulkActionsBar({
           </button>
           <button
             className="bulk-action-btn"
+            onClick={() => setShowUniversityModal(true)}
+            title="Change university"
+          >
+            🏫 Change University
+          </button>
+          <button
+            className="bulk-action-btn"
             onClick={onExport}
             title="Export selected as CSV"
           >
@@ -59,7 +77,6 @@ export default function BulkActionsBar({
         </div>
       </div>
 
-      {/* Assign Modal */}
       {showAssignModal && (
         <AssignUserModal
           selectedCount={selectedCount}
@@ -71,7 +88,6 @@ export default function BulkActionsBar({
         />
       )}
 
-      {/* Stage Modal */}
       {showStageModal && (
         <ChangeStageModal
           selectedCount={selectedCount}
@@ -82,7 +98,104 @@ export default function BulkActionsBar({
           }}
         />
       )}
+
+      {showUniversityModal && (
+        <ChangeUniversityModal
+          selectedCount={selectedCount}
+          onClose={() => setShowUniversityModal(false)}
+          onConfirm={(university, assignedTo) => {
+            onChangeUniversity(university, assignedTo);
+            setShowUniversityModal(false);
+          }}
+        />
+      )}
     </>
+  );
+}
+
+// ==================== Change University Modal ====================
+
+function ChangeUniversityModal({ selectedCount, onClose, onConfirm }) {
+  const [users, setUsers] = useState([]);
+  const [selectedUniversity, setSelectedUniversity] = useState('');
+  const [selectedUser, setSelectedUser] = useState('');
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    usersAPI
+      .getAll({ limit: 200 })
+      .then((res) => setUsers(res.data))
+      .catch((err) => console.error(err))
+      .finally(() => setLoading(false));
+  }, []);
+
+  const handleConfirm = () => {
+    if (!selectedUniversity) {
+      alert('Please select a university');
+      return;
+    }
+    onConfirm(selectedUniversity, selectedUser);
+  };
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-content bulk-modal" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-header">
+          <h2>Change University</h2>
+          <button className="modal-close" onClick={onClose}>×</button>
+        </div>
+
+        <div className="modal-body">
+          <p className="bulk-modal-info">
+            Changing university for <strong>{selectedCount}</strong> lead{selectedCount > 1 ? 's' : ''}
+          </p>
+
+          <label className="bulk-label">
+            University <span style={{ color: '#e53935' }}>*</span>
+          </label>
+          <select
+            className="form-select"
+            value={selectedUniversity}
+            onChange={(e) => setSelectedUniversity(e.target.value)}
+            autoFocus
+          >
+            <option value="">Select University</option>
+            {UNIVERSITIES.map((u) => (
+              <option key={u} value={u}>{u}</option>
+            ))}
+          </select>
+
+          <label className="bulk-label" style={{ marginTop: 12 }}>
+            Assign To (optional)
+          </label>
+          {loading ? (
+            <div style={{ padding: 10 }}>⏳ Loading users...</div>
+          ) : (
+            <select
+              className="form-select"
+              value={selectedUser}
+              onChange={(e) => setSelectedUser(e.target.value)}
+            >
+              <option value="">-- Keep existing assignment --</option>
+              {users.map((u) => (
+                <option key={u._id} value={`${u.name} (${u.employeeId})`}>
+                  {u.name} ({u.employeeId})
+                </option>
+              ))}
+            </select>
+          )}
+        </div>
+
+        <div className="modal-footer">
+          <button className="settings-btn-secondary" onClick={onClose}>
+            Cancel
+          </button>
+          <button className="settings-btn" onClick={handleConfirm}>
+            Update {selectedCount} Lead{selectedCount > 1 ? 's' : ''}
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -102,29 +215,21 @@ function AssignUserModal({ selectedCount, onClose, onConfirm }) {
   }, []);
 
   const handleConfirm = () => {
-    if (!selectedUser) {
-      alert('Please select a user');
-      return;
-    }
+    if (!selectedUser) { alert('Please select a user'); return; }
     onConfirm(selectedUser);
   };
 
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div
-        className="modal-content bulk-modal"
-        onClick={(e) => e.stopPropagation()}
-      >
+      <div className="modal-content bulk-modal" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
           <h2>Assign To User</h2>
           <button className="modal-close" onClick={onClose}>×</button>
         </div>
-
         <div className="modal-body">
           <p className="bulk-modal-info">
             Assigning <strong>{selectedCount}</strong> lead{selectedCount > 1 ? 's' : ''} to:
           </p>
-
           {loading ? (
             <div style={{ padding: 20, textAlign: 'center' }}>⏳ Loading users...</div>
           ) : (
@@ -143,11 +248,8 @@ function AssignUserModal({ selectedCount, onClose, onConfirm }) {
             </select>
           )}
         </div>
-
         <div className="modal-footer">
-          <button className="settings-btn-secondary" onClick={onClose}>
-            Cancel
-          </button>
+          <button className="settings-btn-secondary" onClick={onClose}>Cancel</button>
           <button className="settings-btn" onClick={handleConfirm}>
             Assign {selectedCount} Lead{selectedCount > 1 ? 's' : ''}
           </button>
@@ -167,7 +269,6 @@ function ChangeStageModal({ selectedCount, onClose, onConfirm }) {
   const [selectedReason, setSelectedReason] = useState('');
   const [loading, setLoading] = useState(true);
 
-  // Load stages on mount
   useEffect(() => {
     settingsAPI
       .getAll('stage', { limit: 100 })
@@ -176,12 +277,8 @@ function ChangeStageModal({ selectedCount, onClose, onConfirm }) {
       .finally(() => setLoading(false));
   }, []);
 
-  // Load reasons when stage changes (cascading)
   useEffect(() => {
-    if (!selectedStageId) {
-      setReasons([]);
-      return;
-    }
+    if (!selectedStageId) { setReasons([]); return; }
     settingsAPI
       .getAll('reason', { limit: 100, parentId: selectedStageId })
       .then((res) => setReasons(res.data))
@@ -193,58 +290,37 @@ function ChangeStageModal({ selectedCount, onClose, onConfirm }) {
     const stage = stages.find((s) => s._id === id);
     setSelectedStageId(id);
     setSelectedStage(stage?.name || '');
-    setSelectedReason(''); // reset reason
+    setSelectedReason('');
   };
 
   const handleConfirm = () => {
-    if (!selectedStage) {
-      alert('Please select a stage');
-      return;
-    }
+    if (!selectedStage) { alert('Please select a stage'); return; }
     onConfirm(selectedStage, selectedReason);
   };
 
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div
-        className="modal-content bulk-modal"
-        onClick={(e) => e.stopPropagation()}
-      >
+      <div className="modal-content bulk-modal" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
           <h2>Change Stage</h2>
           <button className="modal-close" onClick={onClose}>×</button>
         </div>
-
         <div className="modal-body">
           <p className="bulk-modal-info">
-            Changing stage for <strong>{selectedCount}</strong> lead
-            {selectedCount > 1 ? 's' : ''}:
+            Changing stage for <strong>{selectedCount}</strong> lead{selectedCount > 1 ? 's' : ''}:
           </p>
-
           {loading ? (
             <div style={{ padding: 20, textAlign: 'center' }}>⏳ Loading...</div>
           ) : (
             <>
-              <label className="bulk-label">
-                Stage <span style={{ color: '#e53935' }}>*</span>
-              </label>
-              <select
-                className="form-select"
-                value={selectedStageId}
-                onChange={handleStageChange}
-                autoFocus
-              >
+              <label className="bulk-label">Stage <span style={{ color: '#e53935' }}>*</span></label>
+              <select className="form-select" value={selectedStageId} onChange={handleStageChange} autoFocus>
                 <option value="">Select Stage</option>
                 {stages.map((s) => (
-                  <option key={s._id} value={s._id}>
-                    {s.name}
-                  </option>
+                  <option key={s._id} value={s._id}>{s.name}</option>
                 ))}
               </select>
-
-              <label className="bulk-label" style={{ marginTop: 12 }}>
-                Reason (optional)
-              </label>
+              <label className="bulk-label" style={{ marginTop: 12 }}>Reason (optional)</label>
               <select
                 className="form-select"
                 value={selectedReason}
@@ -253,19 +329,14 @@ function ChangeStageModal({ selectedCount, onClose, onConfirm }) {
               >
                 <option value="">Select Reason</option>
                 {reasons.map((r) => (
-                  <option key={r._id} value={r.name}>
-                    {r.name}
-                  </option>
+                  <option key={r._id} value={r.name}>{r.name}</option>
                 ))}
               </select>
             </>
           )}
         </div>
-
         <div className="modal-footer">
-          <button className="settings-btn-secondary" onClick={onClose}>
-            Cancel
-          </button>
+          <button className="settings-btn-secondary" onClick={onClose}>Cancel</button>
           <button className="settings-btn" onClick={handleConfirm}>
             Change Stage for {selectedCount} Lead{selectedCount > 1 ? 's' : ''}
           </button>
