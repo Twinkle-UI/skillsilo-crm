@@ -13,6 +13,8 @@ import userRoutes from "./routes/userRoutes.js";
 import permissionRoutes from "./routes/permissionRoutes.js";
 import authRoutes from "./routes/authRoutes.js";
 import webhookRoutes from "./routes/webhookRoutes.js";
+// Line 15 ke baad (webhookRoutes import ke baad):
+import universityRoutes from "./routes/universityRoutes.js";
 
 // Load .env variables
 dotenv.config();
@@ -60,6 +62,8 @@ app.use("/api/settings", settingRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/permissions", permissionRoutes);
 app.use("/api/webhooks", webhookRoutes);
+// Line 63 ke baad (app.use("/api/webhooks",...) ke baad):
+app.use("/api/universities", universityRoutes);
 
 // ============ 404 Handler ============
 app.use((req, res) => {

@@ -11,17 +11,22 @@ function getAssignedOnlyFilter(user) {
 
 // GET /api/leads - list with filter, search, pagination, advanced rules
 export const getLeads = async (req, res) => {
-  try {
     const {
       filter,
       search = '',
       page = 1,
       limit = 10,
-      rules // JSON string of filter rules array
+      rules, // JSON string of filter rules array
+      university // header ke University-dropdown se aata hai
     } = req.query;
 
     // Build query - all filters combined with AND
     const query = {};
+
+    if (university) {
+      query.inquiredFor = university;
+    } try {
+
 
     // 1. Filter chip (stage from top chips)
     if (filter && filter !== 'all' && filter !== 'All Leads') {

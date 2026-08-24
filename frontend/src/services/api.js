@@ -69,17 +69,28 @@ export const authAPI = {
 
 // ========== Dashboard ==========
 export const dashboardAPI = {
-  getStats: () => apiFetch("/dashboard/stats"),
+  getStats: (university) => {
+    const params = new URLSearchParams();
+    if (university) params.append("university", university);
+    const qs = params.toString();
+    return apiFetch(`/dashboard/stats${qs ? `?${qs}` : ""}`);
+  },
+};
+
+// ========== Universities (header switcher) ==========
+export const universityAPI = {
+  getAll: () => apiFetch("/universities"),
 };
 
 // ========== Leads ==========
 export const leadsAPI = {
-  getAll: ({ filter, search, page, limit } = {}) => {
+  getAll: ({ filter, search, page, limit, university } = {}) => {
     const params = new URLSearchParams();
     if (filter) params.append("filter", filter);
     if (search) params.append("search", search);
     if (page) params.append("page", page);
     if (limit) params.append("limit", limit);
+    if (university) params.append("university", university);
     return apiFetch(`/leads?${params}`);
   },
   getFilterCounts: () => apiFetch("/leads/filters/counts"),

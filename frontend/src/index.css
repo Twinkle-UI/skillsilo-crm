@@ -3707,3 +3707,86 @@ td.num {
 .auth-dev-link:hover {
   background: #e8f0fe;
 }
+
+
+
+/* add css dropdown university */
+
+
+/* ===== University Dropdown (header switcher) ===== */
+.university-dropdown {
+  position: relative;
+}
+
+.university-trigger {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  padding: 6px 10px;
+  border-radius: 4px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #333;
+  transition: background 0.15s;
+}
+
+.university-trigger:hover {
+  background: #f0f0f0;
+}
+
+.university-chevron {
+  font-size: 10px;
+  color: #888;
+}
+
+.university-menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  background: white;
+  border: 1px solid #e0e0e0;
+  border-radius: 6px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+  min-width: 240px;
+  z-index: 1000;
+  overflow: hidden;
+  padding: 6px 0;
+}
+
+.university-menu-item {
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: none;
+  padding: 10px 16px;
+  font-size: 13px;
+  color: #444;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  transition: background 0.15s;
+}
+
+.university-menu-item:hover {
+  background: #f4f5f7;
+}
+
+.university-menu-item.active {
+  color: #16a34a;
+  font-weight: 600;
+}
+
+.university-menu-icon {
+  font-size: 14px;
+}
+
+@media (max-width: 768px) {
+  .university-trigger span:first-child {
+    max-width: 110px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}

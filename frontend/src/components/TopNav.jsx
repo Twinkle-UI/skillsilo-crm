@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import ChangePasswordModal from "./ChangePasswordModal";
+import UniversityDropdown from "./UniversityDropdown";
 
 export default function TopNav({
   onMenuToggle,
@@ -44,7 +45,8 @@ export default function TopNav({
             E-Learnings
           </div>
         </div>
-        <div className="nav-right">
+          <div className="nav-right">
+          <UniversityDropdown />
           <span className="icon">⚡</span>
           <span className="icon">⛶</span>
           <span className="icon">

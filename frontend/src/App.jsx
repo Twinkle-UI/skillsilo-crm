@@ -12,6 +12,7 @@ import ForgotPasswordPage from "./pages/ForgotPasswordPage";
 import ResetPasswordPage from "./pages/ResetPasswordPage";
 import { isAuthenticated, getUser, logout } from "./utils/auth";
 import { PermissionsProvider } from "./contexts/PermissionsContext";
+import { UniversityProvider } from "./contexts/UniversityContext";
 
 export default function App() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -107,24 +108,25 @@ export default function App() {
         return <DashboardPage />;
     }
   };
-
   return (
     <PermissionsProvider>
-      <TopNav
-        onMenuToggle={() => setIsMobileMenuOpen((prev) => !prev)}
-        user={user}
-        onLogout={handleLogout}
-        onSettingsClick={() => setCurrentPage("settings")}
-      />
-      <PurpleNav
-        isMobileOpen={isMobileMenuOpen}
-        currentPage={currentPage}
-        onPageChange={handlePageChange}
-      />
+      <UniversityProvider>
+        <TopNav
+          onMenuToggle={() => setIsMobileMenuOpen((prev) => !prev)}
+          user={user}
+          onLogout={handleLogout}
+          onSettingsClick={() => setCurrentPage("settings")}
+        />
+        <PurpleNav
+          isMobileOpen={isMobileMenuOpen}
+          currentPage={currentPage}
+          onPageChange={handlePageChange}
+        />
 
-      {renderPage()}
+        {renderPage()}
 
-      <Footer />
+        <Footer />
+      </UniversityProvider>
     </PermissionsProvider>
   );
 }

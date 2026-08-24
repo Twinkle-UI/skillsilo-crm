@@ -7,6 +7,7 @@ import CallLog from "../models/CallLog.js";
 export const getDashboardStats = async (req, res) => {
   try {
     const isAdmin = req.user?.role === "admin";
+    const { university } = req.query; // header ke University-dropdown se aata hai
     // Lead.assignedTo format hamesha "Name (EmployeeId)" hota hai
     const myName = req.user?.employeeId
       ? `${req.user.name} (${req.user.employeeId})`
@@ -14,23 +15,33 @@ export const getDashboardStats = async (req, res) => {
 
     const leadMatch = isAdmin ? {} : { assignedTo: myName };
     const followUpMatch = isAdmin ? {} : { assignedTo: myName };
+    if (university) {
+      leadMatch.inquiredFor = university;
+      followUpMatch.inquiredFor = university;
+    }
 
     // Non-admin ke calls sirf unki apni leads ke honge (CallLog mein direct
-    // assignedTo nahi hai, Lead se lookup karke match karna padta hai)
-    const callLeadLookupStages = isAdmin
-      ? []
-      : [
-          {
-            $lookup: {
-              from: "leads",
-              localField: "leadId",
-              foreignField: "_id",
-              as: "lead",
+    // assignedTo nahi hai, Lead se lookup karke match karna padta hai).
+    // University filter ke liye bhi yahi lookup chahiye (chahe admin ho ya na ho).
+    const callMatchStage = {};
+    if (!isAdmin) callMatchStage["lead.assignedTo"] = myName;
+    if (university) callMatchStage["lead.inquiredFor"] = university;
+
+    const callLeadLookupStages =
+      !isAdmin || university
+        ? [
+            {
+              $lookup: {
+                from: "leads",
+                localField: "leadId",
+                foreignField: "_id",
+                as: "lead",
+              },
             },
-          },
-          { $unwind: "$lead" },
-          { $match: { "lead.assignedTo": myName } },
-        ];
+            { $unwind: "$lead" },
+            { $match: callMatchStage },
+          ]
+        : [];
 
     // ========== Date helpers ==========
     const today = new Date();

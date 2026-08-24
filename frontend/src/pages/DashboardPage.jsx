@@ -10,22 +10,24 @@ import StageChart from '../components/StageChart';
 import DataTable from '../components/DataTable';
 import { dashboardAPI } from '../services/api';
 import { usePermissions } from '../contexts/PermissionsContext';
+import { useUniversity } from '../contexts/UniversityContext';
 
 export default function DashboardPage() {
   const { isAdmin } = usePermissions();
+  const { selectedUniversity } = useUniversity();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [lastUpdated, setLastUpdated] = useState(null);
 
-  // Fetch dashboard data on mount
+  // Fetch dashboard data on mount, aur jab bhi header se university badle
   useEffect(() => {
     let cancelled = false;
 
     const fetchData = async () => {
       try {
         setLoading(true);
-        const res = await dashboardAPI.getStats();
+        const res = await dashboardAPI.getStats(selectedUniversity);
         if (!cancelled) {
           setData(res.data);
           setLastUpdated(new Date());
@@ -44,7 +46,7 @@ export default function DashboardPage() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [selectedUniversity]);
 
   if (loading) {
     return (
