@@ -3790,3 +3790,85 @@ td.num {
     white-space: nowrap;
   }
 }
+
+
+
+
+
+/* ===== Journey Timeline (Lead Details > Journey tab) ===== */
+.ld-journey-timeline {
+  padding: 20px 0;
+}
+
+.ld-journey-item {
+  display: grid;
+  grid-template-columns: 200px 1fr;
+  gap: 20px;
+  position: relative;
+  padding-bottom: 28px;
+  padding-left: 20px;
+}
+
+.ld-journey-item::before {
+  content: "";
+  position: absolute;
+  left: 3px;
+  top: 6px;
+  bottom: -8px;
+  width: 1px;
+  background: #d8d8f0;
+}
+
+.ld-journey-item:last-child::before {
+  display: none;
+}
+
+.ld-journey-dot {
+  position: absolute;
+  left: 0;
+  top: 8px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #4f46e5;
+}
+
+.ld-journey-date-badge {
+  background: #eceafc;
+  color: #4338ca;
+  font-size: 12px;
+  font-weight: 500;
+  padding: 6px 12px;
+  border-radius: 4px;
+  height: fit-content;
+  white-space: nowrap;
+}
+
+.ld-journey-content strong {
+  display: block;
+  font-size: 14px;
+  color: #1a1a2e;
+  margin-bottom: 6px;
+}
+
+.ld-journey-detail {
+  font-size: 13px;
+  color: #555;
+  line-height: 1.6;
+}
+
+.ld-journey-by {
+  font-size: 12px;
+  color: #999;
+  margin-top: 4px;
+}
+
+@media (max-width: 768px) {
+  .ld-journey-item {
+    grid-template-columns: 1fr;
+    gap: 6px;
+  }
+  .ld-journey-date-badge {
+    width: fit-content;
+  }
+}

@@ -1,5 +1,6 @@
 import { leadsAPI } from '../services/api';
 import { usePermissions } from '../contexts/PermissionsContext';
+import { useUniversity } from '../contexts/UniversityContext';
 import { useState, useEffect } from 'react';
 import LeadsHeader from '../components/leads/LeadsHeader';
 import FilterChips from '../components/leads/FilterChips';
@@ -10,8 +11,6 @@ import AddFollowUpModal from '../components/leads/AddFollowUpModal';
 import UploadLeadsModal from '../components/leads/UploadLeadsModal';
 import FilterModal from '../components/leads/FilterModal';
 import BulkActionsBar from '../components/leads/BulkActionsBar';
-// import { leadsAPI } from '../services/api';
-
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
 export default function LeadsPage({
@@ -19,7 +18,9 @@ export default function LeadsPage({
   pendingEditLead,
   onPendingEditConsumed
 }) {
-    const { isAdmin } = usePermissions();
+    // const { isAdmin } = usePermissions();
+        const { isAdmin } = usePermissions();
+  const { selectedUniversity } = useUniversity();
   const [entries, setEntries] = useState(10);
   const [search, setSearch] = useState('');
   const [activeFilter, setActiveFilter] = useState('All Leads');
@@ -64,13 +65,13 @@ export default function LeadsPage({
   // Fetch filter counts once
   useEffect(() => {
     leadsAPI
-      .getFilterCounts()
+      .getFilterCounts(selectedUniversity)
       .then((res) => setFilterCounts(res.data))
       .catch((err) => console.error('Filter counts error:', err));
-  }, []);
+  }, [selectedUniversity]);
 
   // Build query params
-  const buildQuery = () => {
+    const buildQuery = () => {
     const query = {
       filter: activeFilter,
       search,
@@ -79,6 +80,9 @@ export default function LeadsPage({
     };
     if (filterRules.length > 0) {
       query.rules = JSON.stringify(filterRules);
+    }
+    if (selectedUniversity) {
+      query.university = selectedUniversity;
     }
     return query;
   };
@@ -102,12 +106,12 @@ export default function LeadsPage({
     }, 300);
 
     return () => clearTimeout(timer);
-  }, [activeFilter, search, entries, filterRules]);
+    }, [activeFilter, search, entries, filterRules, selectedUniversity]);
 
   // Refresh counts helper
-  const refreshCounts = () => {
+   const refreshCounts = () => {
     leadsAPI
-      .getFilterCounts()
+      .getFilterCounts(selectedUniversity)
       .then((res) => setFilterCounts(res.data))
       .catch((err) => console.error(err));
   };

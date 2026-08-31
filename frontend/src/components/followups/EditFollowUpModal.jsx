@@ -17,7 +17,7 @@ export default function EditFollowUpModal({ followUp, onClose, onSuccess }) {
   const [selectedStageId, setSelectedStageId] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
-
+   
   // Load stages
   useEffect(() => {
     settingsAPI

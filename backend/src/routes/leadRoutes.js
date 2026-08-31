@@ -3,6 +3,7 @@ import {
   getLeads,
   getFilterCounts,
   getLeadById,
+  getLeadActivity,
   createLead,
   updateLead,
   deleteLead,
@@ -23,6 +24,7 @@ router.post('/bulk/university', bulkChangeUniversity);  // ← ye add karo
 router.get('/filters/counts', protect, getFilterCounts);
 router.get('/export', protect, exportLeads);
 router.post('/import', importLeads);
+router.get('/:id/activity', protect, getLeadActivity); // Journey tab
 
 // Bulk operations
 router.post('/bulk/delete', protect, adminOnly, bulkDeleteLeads);

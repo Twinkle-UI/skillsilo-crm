@@ -1,5 +1,8 @@
 import Lead from "../models/Lead.js";
+import User from "../models/User.js";
+import CallLog from "../models/CallLog.js";
 import { getNextAssignee } from "../services/leadAssignmentService.js";
+import { logActivity } from "../services/activityLogService.js";
 
 function buildNormalizedMap(obj) {
   const map = {};
@@ -124,6 +127,12 @@ async function processMetaLead(leadgenData, pageId, rawData) {
   });
 
   console.log(`✅ Meta lead created: ${newLead.name} → ${assignedTo}`);
+  logActivity({
+    leadId: newLead._id,
+    type: "created",
+    details: { assignedTo, source: "Meta Ads" },
+    performedBy: "System (Meta Ads)",
+  });
   return { success: true, leadId: newLead._id, assignedTo };
 }
 
@@ -226,6 +235,12 @@ export const receivePabblyWebhook = async (req, res) => {
     });
 
     console.log(`✅ Pabbly lead created: ${newLead.name} → ${assignedTo}`);
+    logActivity({
+      leadId: newLead._id,
+      type: "created",
+      details: { assignedTo, source: "Meta Ads" },
+      performedBy: "System (Pabbly)",
+    });
 
     return res.status(200).json({
       success: true,
@@ -260,3 +275,137 @@ function mapLeadFields(normMap) {
     campaignId: pick(normMap, ["campaign_id", "campaignid"]),
   };
 }
+
+// ========== Callyzer (Call Tracking) ==========
+//
+// Ye field-names Callyzer ke apne "Webhook Config > Request" panel se
+// confirm kiye gaye hain (exact match, guesswork nahi):
+//
+// [{ emp_name, emp_code, emp_country_code, emp_number, emp_tags: [...],
+//    call_logs: [{ id, client_name, client_country_code, client_number,
+//                   duration, call_type, call_date, call_time, note,
+//                   call_recording_url, crm_status, reminder_date,
+//                   reminder_time, synced_at, modified_at }] }]
+
+function last10Digits(raw) {
+  if (!raw) return "";
+  const digits = String(raw).replace(/\D/g, "");
+  return digits.slice(-10);
+}
+
+function isCallyzerAuthorized(req) {
+  const secret = process.env.CALLYZER_WEBHOOK_SECRET;
+  if (!secret) return true;
+
+  const provided =
+    req.headers["x-webhook-secret"] ||
+    req.headers["secret"] ||
+    req.headers["x-secret"] ||
+    req.headers["authorization"]?.replace(/^Bearer\s+/i, "") ||
+    req.query.secret;
+
+  if (provided !== secret) {
+    console.log("Callyzer auth debug - headers:", JSON.stringify(req.headers));
+    console.log("Callyzer auth debug - query:", JSON.stringify(req.query));
+  }
+
+  return provided === secret;
+}
+
+// Callyzer 'call_type': "Incoming" | "Outgoing" | "Missed" | "Rejected"
+function mapCallType(callType) {
+  const t = String(callType || "").toLowerCase();
+  if (t === "incoming") return "incoming";
+  if (t === "outgoing") return "outgoing";
+  if (t === "missed") return "missed";
+  if (t === "rejected") return "rejected";
+  return "outgoing"; // fallback, jab Callyzer koi naya/anjaan type bheje
+}
+
+// call_date ("2023-09-13") aur call_time ("17:49:41") alag-alag fields
+// hain - combine karke ek Date banate hain
+function parseCallyzerDateTime(dateStr, timeStr) {
+  if (!dateStr) return new Date();
+  const combined = timeStr ? `${dateStr}T${timeStr}` : dateStr;
+  const parsed = new Date(combined);
+  return isNaN(parsed.getTime()) ? new Date() : parsed;
+}
+
+// POST /api/webhooks/callyzer
+// Callyzer app me: Connectors > API & Webhook > Webhook Config me:
+//   Webhook URL: https://<backend>/api/webhooks/callyzer  (query param nahi)
+//   Secret: <CALLYZER_WEBHOOK_SECRET wahi value jo .env me hai>
+export const receiveCallyzerWebhook = async (req, res) => {
+  try {
+    if (!isCallyzerAuthorized(req)) {
+      console.error("❌ Callyzer webhook: invalid secret");
+      return res.status(401).json({ success: false, message: "Unauthorized" });
+    }
+
+    const employees = Array.isArray(req.body) ? req.body : [];
+    let created = 0;
+    let skipped = 0;
+    let unmatched = 0;
+
+    for (const emp of employees) {
+      const empNumber = last10Digits(emp.emp_number);
+      const empName = emp.emp_name || "";
+      const logs = Array.isArray(emp.call_logs) ? emp.call_logs : [];
+      if (logs.length === 0) continue;
+
+      // Employee (agent) match - notes me reference ke liye. Role-based
+      // call filtering CallLog.leadId -> Lead.assignedTo se hoti hai.
+      let agentUser = null;
+      if (empNumber) {
+        agentUser = await User.findOne({ mobile: { $regex: `${empNumber}$` } });
+      }
+
+      for (const log of logs) {
+        const clientNumber = last10Digits(log.client_number);
+        let matchedLead = null;
+        if (clientNumber) {
+          matchedLead = await Lead.findOne({ contact: { $regex: `${clientNumber}$` } });
+        }
+        if (!matchedLead) unmatched++;
+
+        const callDate = parseCallyzerDateTime(log.call_date, log.call_time);
+
+        // Note + CRM status dono save kar lete hain, useful context hai
+        const noteParts = [];
+        if (log.note) noteParts.push(log.note);
+        if (log.crm_status) noteParts.push(`Status: ${log.crm_status}`);
+        const notes = noteParts.join(" | ") || (empName ? `Agent: ${empName}` : "");
+
+        try {
+          const result = await CallLog.updateOne(
+            { externalId: log.id },
+            {
+              $setOnInsert: {
+                externalId: log.id,
+                leadId: matchedLead?._id,
+                type: mapCallType(log.call_type),
+                duration: Number(log.duration) || 0,
+                notes,
+                callDate,
+              },
+            },
+            { upsert: true },
+          );
+          if (result.upsertedCount > 0) created++;
+          else skipped++;
+        } catch (err) {
+          console.error("Callyzer call-log upsert failed:", err.message);
+        }
+      }
+    }
+
+    console.log(
+      `✅ Callyzer webhook processed: ${created} new, ${skipped} duplicate, ${unmatched} unmatched-lead`,
+    );
+    return res.status(200).json({ success: true, created, skipped, unmatched });
+  } catch (error) {
+    console.error("❌ Callyzer webhook error:", error);
+    // 200 taaki Callyzer retry-storm na kare hamari taraf ki galti pe bhi
+    return res.status(200).json({ success: false, message: error.message });
+  }
+};

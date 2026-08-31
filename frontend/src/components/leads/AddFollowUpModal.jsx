@@ -141,7 +141,7 @@ export default function AddFollowUpModal({ lead, onClose, onSuccess }) {
         onClick={(e) => e.stopPropagation()}
       >
         <div className="modal-header">
-          <h2>Add Follow-Up For Student</h2>
+                    <h2>Add Follow-Up For {lead?.name || 'Student'}</h2>
           <button className="modal-close" onClick={onClose}>×</button>
         </div>
 

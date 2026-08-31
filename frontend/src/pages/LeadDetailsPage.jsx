@@ -4,24 +4,27 @@ import { leadsAPI, followUpsAPI } from "../services/api";
 export default function LeadDetailsPage({ leadId, onBack, onEdit }) {
   const [lead, setLead] = useState(null);
   const [followUps, setFollowUps] = useState([]);
+  const [activities, setActivities] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [activeTab, setActiveTab] = useState("followups"); // 'followups' or 'journey'
 
-  // Load lead + follow-ups
+  // Load lead + follow-ups + activity (journey)
   useEffect(() => {
     const loadData = async () => {
       try {
         setLoading(true);
 
-        // Parallel: lead details + its follow-ups
-        const [leadRes, followUpsRes] = await Promise.all([
+        // Parallel: lead details + its follow-ups + journey activity
+        const [leadRes, followUpsRes, activityRes] = await Promise.all([
           leadsAPI.getById(leadId),
           followUpsAPI.getByLead(leadId),
+          leadsAPI.getActivity(leadId),
         ]);
 
         setLead(leadRes.data);
         setFollowUps(followUpsRes.data);
+        setActivities(activityRes.data);
         setError(null);
       } catch (err) {
         setError(err.message);
@@ -46,6 +49,7 @@ export default function LeadDetailsPage({ leadId, onBack, onEdit }) {
   };
 
   // Format date short
+  // Format date short
   const formatDateShort = (date) => {
     if (!date) return "—";
     return new Date(date).toLocaleString("en-IN", {
@@ -53,6 +57,29 @@ export default function LeadDetailsPage({ leadId, onBack, onEdit }) {
       month: "short",
       year: "numeric",
     });
+  };
+
+  // Journey tab date format - "26th Aug 2026 03:42 PM"
+  const formatJourneyDate = (date) => {
+    if (!date) return "—";
+    const d = new Date(date);
+    const day = d.getDate();
+    const suffix =
+      day % 10 === 1 && day !== 11
+        ? "st"
+        : day % 10 === 2 && day !== 12
+          ? "nd"
+          : day % 10 === 3 && day !== 13
+            ? "rd"
+            : "th";
+    const month = d.toLocaleString("en-IN", { month: "short" });
+    const year = d.getFullYear();
+    const time = d.toLocaleString("en-IN", {
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: true,
+    });
+    return `${day}${suffix} ${month} ${year} ${time}`;
   };
 
   // Edit click
@@ -221,23 +248,80 @@ export default function LeadDetailsPage({ leadId, onBack, onEdit }) {
 
           {/* Tab content */}
           <div className="ld-tab-content">
-            {activeTab === "journey" && (
-              <div className="ld-empty-state">
-                <div className="ld-empty-icon">🚧</div>
-                <h3>Journey Timeline</h3>
-                <p>Activity log feature coming soon. Will show:</p>
-                <ul
-                  style={{
-                    textAlign: "left",
-                    maxWidth: 300,
-                    margin: "12px auto",
-                  }}
-                >
-                  <li>Lead stage changes</li>
-                  <li>Field updates</li>
-                  <li>Follow-up additions</li>
-                  <li>Assignment changes</li>
-                </ul>
+                        {activeTab === "journey" && (
+              <div className="ld-journey-timeline">
+                {activities.length === 0 ? (
+                  <div className="ld-empty-state">
+                    <div className="ld-empty-icon">🚧</div>
+                    <h3>No Activity Yet</h3>
+                    <p>Lead updates aur follow-ups yahan dikhengi.</p>
+                  </div>
+                ) : (
+                  activities.map((act) => (
+                    <div key={act._id} className="ld-journey-item">
+                      <div className="ld-journey-dot" />
+                      <div className="ld-journey-date-badge">
+                        {formatJourneyDate(act.createdAt)}
+                      </div>
+                      <div className="ld-journey-content">
+                        {act.type === "created" && (
+                          <>
+                            <strong>Lead Created</strong>
+                            <div className="ld-journey-detail">
+                              Lead Created
+                              {act.details?.assignedTo &&
+                                ` and assigned to ${act.details.assignedTo}`}
+                            </div>
+                          </>
+                        )}
+
+                        {act.type === "updated" && (
+                          <>
+                            <strong>Lead Updated</strong>
+                            {act.changes?.map((c, i) => (
+                              <div className="ld-journey-detail" key={i}>
+                                <span className="ld-detail-label">
+                                  {c.label}:
+                                </span>{" "}
+                                Old - {c.oldValue} | New - {c.newValue}
+                              </div>
+                            ))}
+                            <div className="ld-journey-by">
+                              By: {act.performedBy}
+                            </div>
+                          </>
+                        )}
+
+                        {act.type === "followup_added" && (
+                          <>
+                            <strong>Follow-Up</strong>
+                            <div className="ld-journey-detail">
+                              Added Follow-Up for{" "}
+                              {formatJourneyDate(act.details?.dueAt)}
+                            </div>
+                            {act.details?.remark && (
+                              <div className="ld-journey-detail">
+                                <span className="ld-detail-label">
+                                  Remark:
+                                </span>{" "}
+                                {act.details.remark}
+                              </div>
+                            )}
+                            <div className="ld-journey-detail">
+                              <span className="ld-detail-label">
+                                Status:
+                              </span>{" "}
+                              {act.details?.status}
+                            </div>
+                            <div className="ld-journey-by">
+                              By: {act.performedBy}
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  ))
+                )}
               </div>
             )}
 

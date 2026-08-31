@@ -1,5 +1,7 @@
 import Lead from "../models/Lead.js";
+import ActivityLog from "../models/ActivityLog.js";
 import * as XLSX from "xlsx";
+import { logActivity, formatActor } from "../services/activityLogService.js";
 
 // Non-admin users ko sirf apni assigned leads dikhengi.
 // Admin ko koi restriction nahi (sab leads dikhengi).
@@ -259,7 +261,9 @@ export const getFilterCounts = async (req, res) => {
   try {
     // Non-admin users ke counts bhi sirf unki assigned leads ke hisaab se
     const assignedOnly = getAssignedOnlyFilter(req.user);
+    const { university } = req.query; // header ke University-dropdown se aata hai
     const baseQuery = assignedOnly ? { assignedTo: assignedOnly } : {};
+    if (university) baseQuery.inquiredFor = university;
 
     // Total + own
     const allCount = await Lead.countDocuments(baseQuery);
@@ -337,6 +341,14 @@ export const createLead = async (req, res) => {
     }
 
     const lead = await Lead.create(req.body);
+
+    logActivity({
+      leadId: lead._id,
+      type: "created",
+      details: { assignedTo: lead.assignedTo },
+      performedBy: formatActor(req.user),
+    });
+
     res.status(201).json({ success: true, data: lead });
   } catch (error) {
     res.status(400).json({ success: false, message: error.message });
@@ -346,15 +358,40 @@ export const createLead = async (req, res) => {
 // PUT /api/leads/:id - update existing lead
 export const updateLead = async (req, res) => {
   try {
+    const before = await Lead.findById(req.params.id).lean();
+    if (!before) {
+      return res
+        .status(404)
+        .json({ success: false, message: "Lead not found" });
+    }
+
     const lead = await Lead.findByIdAndUpdate(req.params.id, req.body, {
       new: true,
       runValidators: true,
     });
 
-    if (!lead) {
-      return res
-        .status(404)
-        .json({ success: false, message: "Lead not found" });
+    // Journey tab me dikhne wale fields - jo bhi badle unka diff nikalo
+    const trackedFields = [
+      { field: "stage", label: "Stage" },
+      { field: "stageNote", label: "Reason" },
+      { field: "assignedTo", label: "Assigned To" },
+    ];
+    const changes = trackedFields
+      .filter(({ field }) => req.body[field] !== undefined && before[field] !== lead[field])
+      .map(({ field, label }) => ({
+        field,
+        label,
+        oldValue: before[field] || "-",
+        newValue: lead[field] || "-",
+      }));
+
+    if (changes.length > 0) {
+      logActivity({
+        leadId: lead._id,
+        type: "updated",
+        changes,
+        performedBy: formatActor(req.user),
+      });
     }
 
     res.json({ success: true, data: lead });
@@ -944,6 +981,22 @@ export const bulkChangeUniversity = async (req, res) => {
       message: `Updated ${result.modifiedCount} leads`,
       data: { modifiedCount: result.modifiedCount }
     });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+
+
+
+
+// GET /api/leads/:id/activity - Journey tab ke liye
+export const getLeadActivity = async (req, res) => {
+  try {
+    const activities = await ActivityLog.find({ leadId: req.params.id })
+      .sort({ createdAt: -1 })
+      .lean();
+    res.json({ success: true, data: activities });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }

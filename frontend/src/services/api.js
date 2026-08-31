@@ -93,7 +93,12 @@ export const leadsAPI = {
     if (university) params.append("university", university);
     return apiFetch(`/leads?${params}`);
   },
-  getFilterCounts: () => apiFetch("/leads/filters/counts"),
+    getFilterCounts: (university) => {
+    const params = new URLSearchParams();
+    if (university) params.append("university", university);
+    const qs = params.toString();
+    return apiFetch(`/leads/filters/counts${qs ? `?${qs}` : ""}`);
+  },
   // Export filtered leads as CSV - downloads file directly
   exportCSV: async ({ filter, search } = {}) => {
     const token = getToken();
@@ -129,7 +134,8 @@ export const leadsAPI = {
 
     return { success: true, filename };
   },
-  getById: (id) => apiFetch(`/leads/${id}`),
+    getById: (id) => apiFetch(`/leads/${id}`),
+  getActivity: (id) => apiFetch(`/leads/${id}/activity`),
   create: (data) =>
     apiFetch("/leads", { method: "POST", body: JSON.stringify(data) }),
   update: (id, data) =>

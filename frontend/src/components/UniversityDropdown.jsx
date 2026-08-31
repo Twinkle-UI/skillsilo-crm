@@ -22,12 +22,23 @@ export default function UniversityDropdown() {
   return (
     <div className="university-dropdown" ref={ref}>
       <div className="university-trigger" onClick={() => setOpen((p) => !p)}>
-        <span>{selectedUniversity || "Select University"}</span>
+        <span>{selectedUniversity || "All Universities"}</span>
         <span className="university-chevron">▾</span>
       </div>
 
       {open && (
         <div className="university-menu">
+          <button
+            className={`university-menu-item${!selectedUniversity ? " active" : ""}`}
+            onClick={() => {
+              setSelectedUniversity("");
+              setOpen(false);
+            }}
+          >
+            <span className="university-menu-icon">🌐</span>
+            <span>All Universities</span>
+          </button>
+
           {universities.map((u) => {
             const isActive = u.name === selectedUniversity;
             return (

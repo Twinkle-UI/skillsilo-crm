@@ -1,4 +1,5 @@
 import FollowUp from '../models/FollowUp.js';
+import { logActivity, formatActor } from '../services/activityLogService.js';
 
 // Helper: get date ranges for filters
 const getDateRange = (filter) => {
@@ -93,15 +94,27 @@ export const getFollowUpCounts = async (req, res) => {
 };
 
 // POST /api/followups
+
 export const createFollowUp = async (req, res) => {
   try {
     const followUp = await FollowUp.create(req.body);
+
+    logActivity({
+      leadId: followUp.leadId,
+      type: 'followup_added',
+      details: {
+        remark: followUp.stageNote,
+        status: followUp.status,
+        dueAt: followUp.dueAt,
+      },
+      performedBy: formatActor(req.user),
+    });
+
     res.status(201).json({ success: true, data: followUp });
   } catch (error) {
     res.status(400).json({ success: false, message: error.message });
   }
 };
-
 // PUT /api/followups/:id
 export const updateFollowUp = async (req, res) => {
   try {

@@ -19,15 +19,17 @@ export function UniversityProvider({ children }) {
         const list = res?.data || [];
         setUniversities(list);
 
-        // Agar pehle se koi selection saved nahi hai, ya saved university
-        // ab list me nahi hai (delete/inactive ho gayi), toh pehli active
-        // university default select kar do.
+        // Agar saved selection ab list me valid nahi hai (university
+        // delete/inactive ho gayi), toh filter clear kar do - "All
+        // Universities" pe wapas aa jao. Koi bhi default university
+        // force-select NAHI karni - warna Total Leads jaisa data
+        // galat tarah se filter ho jata hai jab user ne khud kuch select
+        // hi nahi kiya.
         setSelectedUniversityState((prev) => {
-          const stillValid = list.some((u) => u.name === prev);
-          if (prev && stillValid) return prev;
-          const fallback = list[0]?.name || "";
-          if (fallback) localStorage.setItem(STORAGE_KEY, fallback);
-          return fallback;
+          const stillValid = !prev || list.some((u) => u.name === prev);
+          if (stillValid) return prev;
+          localStorage.removeItem(STORAGE_KEY);
+          return "";
         });
       })
       .catch((err) => console.error("Failed to load universities:", err))
@@ -36,7 +38,11 @@ export function UniversityProvider({ children }) {
 
   const setSelectedUniversity = (name) => {
     setSelectedUniversityState(name);
-    localStorage.setItem(STORAGE_KEY, name);
+    if (name) {
+      localStorage.setItem(STORAGE_KEY, name);
+    } else {
+      localStorage.removeItem(STORAGE_KEY);
+    }
   };
 
   return (
