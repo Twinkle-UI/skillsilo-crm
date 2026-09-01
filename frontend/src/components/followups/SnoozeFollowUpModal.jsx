@@ -29,7 +29,7 @@ export default function SnoozeFollowUpModal({ followUp, onClose, onSuccess }) {
 
     try {
       setSubmitting(true);
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('skillsilo_token');
       const res = await fetch(
         `${import.meta.env.VITE_API_URL || 'http://localhost:5000/api'}/followups/${followUp._id}`,
         {

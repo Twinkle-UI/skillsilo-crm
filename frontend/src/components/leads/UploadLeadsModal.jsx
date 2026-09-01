@@ -112,7 +112,7 @@ export default function UploadLeadsModal({ onClose, onSuccess }) {
         body = JSON.stringify({ csv });
       }
 
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('skillsilo_token');
       const res = await fetch(`${API_BASE}/leads/import`, {
         method: 'POST',
         headers: {

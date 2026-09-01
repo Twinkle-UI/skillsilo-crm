@@ -164,7 +164,7 @@ export default function LeadsPage({
     if (!confirm(`Are you sure you want to delete ${count} lead${count > 1 ? 's' : ''}?`)) return;
 
     try {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('skillsilo_token');
       const res = await fetch(`${API_BASE}/leads/bulk/delete`, {
         method: 'POST',
         headers: {
@@ -189,7 +189,7 @@ export default function LeadsPage({
   // Bulk assign
   const handleBulkAssign = async (user) => {
     try {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('skillsilo_token');
       const res = await fetch(`${API_BASE}/leads/bulk/assign`, {
         method: 'POST',
         headers: {
@@ -216,7 +216,7 @@ export default function LeadsPage({
   // Bulk change stage
   const handleBulkChangeStage = async (stage, reason) => {
     try {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('skillsilo_token');
       const res = await fetch(`${API_BASE}/leads/bulk/stage`, {
         method: 'POST',
         headers: {
@@ -245,7 +245,7 @@ export default function LeadsPage({
   // Bulk export
   const handleBulkExport = async () => {
     try {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('skillsilo_token');
       const res = await fetch(`${API_BASE}/leads/bulk/export`, {
         method: 'POST',
         headers: {
@@ -282,7 +282,7 @@ export default function LeadsPage({
 
 const handleBulkChangeUniversity = async (university, assignedTo) => {
   try {
-    const token = localStorage.getItem('token');
+    const token = localStorage.getItem('skillsilo_token');
     const body = { ids: Array.from(selectedIds), inquiredFor: university };
     if (assignedTo) body.assignedTo = assignedTo;
 

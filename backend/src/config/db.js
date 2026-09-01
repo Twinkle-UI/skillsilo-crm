@@ -1,5 +1,4 @@
 import mongoose from 'mongoose';
-
 // MongoDB Atlas connection
 export const connectDB = async () => {
   try {
@@ -10,3 +9,9 @@ export const connectDB = async () => {
     process.exit(1); // Exit on connection failure
   }
 };
+
+
+
+
+
+

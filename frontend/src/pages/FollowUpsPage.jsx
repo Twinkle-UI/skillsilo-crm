@@ -108,7 +108,7 @@ export default function FollowUpsPage({ onViewLead }) {
     if (!confirm(`Mark follow-up for ${followUp.name} as Done?`)) return;
 
     try {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('skillsilo_token');
       const res = await fetch(`${API_BASE}/followups/${followUp._id}`, {
         method: 'PUT',
         headers: {
